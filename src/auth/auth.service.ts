@@ -66,6 +66,7 @@ export class AuthService {
        this.setCookie('refresh_token',refresh_token,res)
        return {access_token,refresh_token}
     }
+
     async signUp(dto:signUpDto){
       try {
         const hasedPassword=await hash(dto.password)
@@ -87,8 +88,8 @@ export class AuthService {
         throw error;
       }
     }
-async signIn(dto:signInDto,res:Response){
 
+async signIn(dto:signInDto,res:Response){
   const user=await this.getUserByEmail(dto.email)
   const passwordMatch=await this.isPasswordMatch(user.password,dto.password)
   if(!passwordMatch){
@@ -107,12 +108,9 @@ async signIn(dto:signInDto,res:Response){
    this.setCookie('access_token',access_token,res)
    this.setCookie('refresh_token',refresh_token,res)
    return {access_token,refresh_token}
-
-
 }
 
 async refreshToken(payload:payload,tokenHash:string,res:Response){
-
   const token_exist=await this.tokenExist(payload.sub,tokenHash)
   if(!token_exist){
     await this.removeToken(payload.sub)
@@ -130,13 +128,25 @@ async refreshToken(payload:payload,tokenHash:string,res:Response){
     this.setCookie('access_token',access_token,res)
     this.setCookie('refresh_token',refresh_token,res)
     return refresh_token
+}
 
+async Logout(res:Response,user:payload){
+await this.prisma.user.update({
+  where:{
+    id:user.sub
+  },
+  data:{
+    hashedRt:null
+  }
+})
+this.clearCookie('access_token',res)
+this.clearCookie('refresh_token',res)
+return {sucess:true} 
 }
 
 async getAllUser(){
   return await this.prisma.user.findMany()
 }
-
 
 
 
@@ -157,6 +167,7 @@ removeToken(id:number){
     data:{hashedRt:null}
   })
 }
+
 getUserByEmail(email:string){
   return this.prisma.user.findUnique({
     where:{email}
@@ -170,6 +181,10 @@ return this.jwtService.signAsync(payload,
 
 setCookie(key:string,token:string,res:Response){
   res.cookie(key,token,{httpOnly:true})
+}
+
+clearCookie(key:string,res:Response){
+  res.clearCookie(key)
 }
 
 }

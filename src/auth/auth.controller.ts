@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, 
+import { Body, Controller, Delete, Get, HttpCode, 
 HttpStatus, Post, Res,UseGuards} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {signUpDto,signInDto } from './dtos';
@@ -53,6 +53,11 @@ export class AuthController {
       const result=await this.authService
       .refreshToken(user,tokenHash,res)
       return res.json({refresh_token:result})
+    }
+
+    @Delete('logout')
+    async Logout(@Res() res:Response,@GetCurrentUser() user:payload){
+     return await this.authService.Logout(res,user)
     }
 
     @Get('user')
