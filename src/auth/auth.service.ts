@@ -4,7 +4,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { signInDto,signUpDto} from './dtos';
 import { hash,verify } from 'argon2';
-import { payload } from './types';
+import { googlePayload, payload } from './types';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
@@ -17,6 +17,55 @@ export class AuthService {
       private configService:ConfigService
       ){}
 
+    private RTSecret = this.configService.get<string>('REFRESH_TOKEN_SECRET')
+    private RTExpiry = this.configService.get<string>('REFRESH_TOKEN_EXPIRY')
+    private ATSecret = this.configService.get<string>('ACCESS_TOKEN_SECRET')
+    private ATExpiry = this.configService.get<string>('ACCESS_TOKEN_EXPIRY')
+
+    async authGoogleCallback(res:Response,user:googlePayload){
+      const db_user=await this.getUserByEmail(user.email)
+      if(!db_user){
+       const name=user.first_name+user.last_name
+       const new_user=await this.prisma.user
+        .create({
+          data: {
+           name:name,
+           email:user.email,
+           isLocaAuth:false,
+           googleId:user.googleId
+          }
+        })
+        const payload={email:user.email,sub:new_user.id}
+        const access_token=await this.
+        generateToken(payload,this.ATSecret,this.ATExpiry)
+        const refresh_token=await this.
+        generateToken(payload,this.RTSecret,this.RTExpiry)
+
+         await this.prisma.user.update({
+          where:{id:new_user.id},
+          data:{hashedRt:refresh_token}
+         })
+         this.setCookie('access_token',access_token,res)
+         this.setCookie('refresh_token',refresh_token,res)
+         return {access_token,refresh_token}
+      }
+      if(db_user&&db_user.isLocaAuth){
+        throw new HttpException("This email not linked to google, please user email and password to login",HttpStatus.BAD_REQUEST)
+      }
+      const payload={email:db_user.email,sub:db_user.id}
+      const access_token=await this.
+      generateToken(payload,this.ATSecret,this.ATExpiry)
+      const refresh_token=await this.
+      generateToken(payload,this.RTSecret,this.RTExpiry)
+       
+       await this.prisma.user.update({
+        where:{id:db_user.id},
+        data:{hashedRt:refresh_token}
+       })
+       this.setCookie('access_token',access_token,res)
+       this.setCookie('refresh_token',refresh_token,res)
+       return {access_token,refresh_token}
+    }
     async signUp(dto:signUpDto){
       try {
         const hasedPassword=await hash(dto.password)
@@ -46,19 +95,17 @@ async signIn(dto:signInDto,res:Response){
     throw new HttpException("Invalid credential",HttpStatus.BAD_REQUEST)
   }
   const payload={email:user.email,sub:user.id}
-  const access_token=await this.generateToken(payload,
-    this.configService.get<string>('ACCESS_TOKEN_SECRET'),
-    this.configService.get<string>('ACCESS_TOKEN_EXPIRY'))
-  const refresh_token=await this.generateToken(payload,
-    this.configService.get<string>('REFRESH_TOKEN_SECRET'),
-    this.configService.get<string>('REFRESH_TOKEN_EXPIRY'))
+  const access_token=await this.
+  generateToken(payload,this.ATSecret,this.ATExpiry)
+  const refresh_token=await this.
+  generateToken(payload,this.RTSecret,this.RTExpiry)
    
    await this.prisma.user.update({
     where:{email:user.email},
     data:{hashedRt:refresh_token}
    })
-   res.cookie('access_token',access_token,{httpOnly:true})
-   res.cookie('refresh_token',refresh_token,{httpOnly:true})
+   this.setCookie('access_token',access_token,res)
+   this.setCookie('refresh_token',refresh_token,res)
    return {access_token,refresh_token}
 
 
@@ -71,20 +118,17 @@ async refreshToken(payload:payload,tokenHash:string,res:Response){
     await this.removeToken(payload.sub)
     throw new HttpException("Token compromised",HttpStatus.FORBIDDEN)
   }
-  const refresh_token=await this.generateToken({
-    email:payload.email,sub:payload.sub},
-    this.configService.get<string>('REFRESH_TOKEN_SECRET'),
-    this.configService.get<string>('REFRESH_TOKEN_EXPIRY'))
-    const access_token=await this.generateToken({
-      email:payload.email,sub:payload.sub},
-    this.configService.get<string>('ACCESS_TOKEN_SECRET'),
-    this.configService.get<string>('ACCESS_TOKEN_EXPIRY'))
+  const payload_data={email:payload.email,sub:payload.sub}
+  const access_token=await this.
+  generateToken(payload_data,this.ATSecret,this.ATExpiry)
+  const refresh_token=await this.
+  generateToken(payload_data,this.RTSecret,this.RTExpiry)
     await this.prisma.user.updateMany({
     where:{email:payload.email,id:payload.sub},
     data:{hashedRt:refresh_token}
     })
-    res.cookie('access_token',access_token,{httpOnly:true})
-    res.cookie('refresh_token',refresh_token,{httpOnly:true})
+    this.setCookie('access_token',access_token,res)
+    this.setCookie('refresh_token',refresh_token,res)
     return refresh_token
 
 }
@@ -92,7 +136,12 @@ async refreshToken(payload:payload,tokenHash:string,res:Response){
 async getAllUser(){
   return await this.prisma.user.findMany()
 }
+
+
+
+
 //untility...........................................
+
 isPasswordMatch(expectedPassword:string,actualPassword:string){
 return verify(expectedPassword,actualPassword)
 }
@@ -119,5 +168,8 @@ return this.jwtService.signAsync(payload,
   {expiresIn:expiry,secret:secret})
 }
 
+setCookie(key:string,token:string,res:Response){
+  res.cookie(key,token,{httpOnly:true})
+}
 
 }

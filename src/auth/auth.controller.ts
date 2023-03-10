@@ -7,6 +7,7 @@ import { payload } from './types';
 import { GetToken } from 'src/common/decorator';
 import { Response } from 'express';
 import { GoogleGuard } from 'src/common/guards';
+import { googlePayload } from './types';
 
 @Controller('auth')
 export class AuthController {
@@ -22,10 +23,9 @@ export class AuthController {
     @Public()
     @Public('refresh_token')
     @UseGuards(GoogleGuard)
-    async authGoogleCallback(@GetCurrentUser() user:payload){
-      //call service that will check user in db and if not exist register it 
-      // and assign new acccess_token and refresh_token
-      return user
+    async authGoogleCallback(@GetCurrentUser() user:googlePayload,@Res() res:Response){
+      const tokens=await this.authService.authGoogleCallback(res,user)
+      return res.json(tokens)
     }
 
     @Post('signup')
@@ -50,7 +50,6 @@ export class AuthController {
     async refreshToken(@GetCurrentUser() user:payload,
       @GetToken('refresh_token') tokenHash:string,
       @Res() res:Response){
-        console.log(user,tokenHash)
       const result=await this.authService
       .refreshToken(user,tokenHash,res)
       return res.json({refresh_token:result})
