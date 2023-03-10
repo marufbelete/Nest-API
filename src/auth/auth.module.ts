@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt/dist';
-import { AccessTokenStrategy, RefreshTokenStrategy } from './strategy';
+import { AccessTokenStrategy, GoogleStrategy, RefreshTokenStrategy } from './strategy';
 import { APP_GUARD } from '@nestjs/core';
 import { AccessTokenGuard, RefreshTokenGuard } from 'src/common/guards';
 
@@ -19,7 +19,8 @@ import { AccessTokenGuard, RefreshTokenGuard } from 'src/common/guards';
     },
     AuthService,
     AccessTokenStrategy,
-    RefreshTokenStrategy],
+    RefreshTokenStrategy,
+    GoogleStrategy],
   controllers: [AuthController]
 })
 export class AuthModule {}

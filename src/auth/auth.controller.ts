@@ -1,15 +1,32 @@
 import { Body, Controller, Get, HttpCode, 
-HttpStatus, Post, Res} from '@nestjs/common';
+HttpStatus, Post, Res,UseGuards} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {signUpDto,signInDto } from './dtos';
 import { GetCurrentUser, Public} from 'src/common/decorator';
 import { payload } from './types';
 import { GetToken } from 'src/common/decorator';
 import { Response } from 'express';
+import { GoogleGuard } from 'src/common/guards';
 
 @Controller('auth')
 export class AuthController {
     constructor(private authService:AuthService){}
+
+    @Get('google')
+    @Public()
+    @Public('refresh_token')
+    @UseGuards(GoogleGuard)
+    async authGoogle(){}
+
+    @Get('google/callback')
+    @Public()
+    @Public('refresh_token')
+    @UseGuards(GoogleGuard)
+    async authGoogleCallback(@GetCurrentUser() user:payload){
+      //call service that will check user in db and if not exist register it 
+      // and assign new acccess_token and refresh_token
+      return user
+    }
 
     @Post('signup')
     @Public()

@@ -57,8 +57,8 @@ async signIn(dto:signInDto,res:Response){
     where:{email:user.email},
     data:{hashedRt:refresh_token}
    })
-   res.cookie('access_token',access_token)
-   res.cookie('refresh_token',refresh_token)
+   res.cookie('access_token',access_token,{httpOnly:true})
+   res.cookie('refresh_token',refresh_token,{httpOnly:true})
    return {access_token,refresh_token}
 
 
@@ -83,8 +83,8 @@ async refreshToken(payload:payload,tokenHash:string,res:Response){
     where:{email:payload.email,id:payload.sub},
     data:{hashedRt:refresh_token}
     })
-   res.cookie('access_token',access_token)
-   res.cookie('refresh_token',refresh_token)
+    res.cookie('access_token',access_token,{httpOnly:true})
+    res.cookie('refresh_token',refresh_token,{httpOnly:true})
     return refresh_token
 
 }

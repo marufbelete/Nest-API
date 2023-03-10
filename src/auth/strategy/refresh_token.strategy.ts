@@ -26,18 +26,18 @@ export class RefreshTokenStrategy extends PassportStrategy(Strategy,'jwt-refresh
     }
 
     async validate(req:Request,payload:payload){
-    const refresh_token=req.cookies.refresh_token
-    const user=await this.prisma.user.findFirst({where:
-    {hashedRt:refresh_token}})
-    if(refresh_token!==user?.hashedRt)
-    {
-      await this.prisma.user.updateMany({
-        where:{id:payload.sub},
-        data:{hashedRt:null}
-      })
-      throw new HttpException("Token compromised, please login again",HttpStatus.FORBIDDEN)
-    }
-    return payload
+        const refresh_token=req.cookies.refresh_token
+        const user=await this.prisma.user.findFirst({where:
+        {hashedRt:refresh_token}})
+        if(refresh_token!==user?.hashedRt)
+        {
+          await this.prisma.user.updateMany({
+            where:{id:payload.sub},
+            data:{hashedRt:null}
+          })
+          throw new HttpException("Token compromised, please login again",HttpStatus.FORBIDDEN)
+        }
+        return payload
     }
     
 }
