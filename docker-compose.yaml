@@ -1,5 +1,23 @@
 version: '3'
 services:
+  node-app:
+    build:
+     context: .
+     args: 
+      NODE_ENV : development
+      # to sync the source code during dev
+    volumes:
+      - '.:/app'
+      - '/app/node_modules'
+    depends_on: 
+      - dev-db
+    ports:
+      - 80:4000
+    # env_file: .env
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:123@dev-db:5435/nestjs?schema=public
+    command: npm run start:dev
   dev-db:
     image: postgres:13
     ports:
@@ -8,11 +26,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123
       POSTGRES_DB: nestjs
-  test-db:
-    image: postgres:13
-    ports:
-      - 5434:5432
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123
-      POSTGRES_DB: nestjs
+    volumes:
+      - db-data:/var/lib/postgresql/data
+volumes:
+  db-data:
+ 
+
+  

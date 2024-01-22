@@ -1,190 +1,168 @@
-import { ForbiddenException, Injectable, HttpStatus} from '@nestjs/common';
-import { HttpException } from "@nestjs/common/exceptions";
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { signInDto,signUpDto} from './dtos';
-import { hash,verify } from 'argon2';
+import { Injectable, HttpStatus } from '@nestjs/common';
+import { HttpException } from '@nestjs/common/exceptions';
+import { PrismaService } from '../prisma/prisma.service';
+import { signInDto, signUpDto } from './dtos';
+import { hash, verify } from 'argon2';
 import { googlePayload, payload } from './types';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
+import { FileService } from 'src/file/file.service';
 
 @Injectable()
 export class AuthService {
-    constructor(
-      private prisma:PrismaService,
-      private jwtService:JwtService,
-      private configService:ConfigService
-      ){}
+  constructor(
+    private prisma: PrismaService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
+    private fileService:FileService
+  ) {}
 
-    private RTSecret = this.configService.get<string>('REFRESH_TOKEN_SECRET')
-    private RTExpiry = this.configService.get<string>('REFRESH_TOKEN_EXPIRY')
-    private ATSecret = this.configService.get<string>('ACCESS_TOKEN_SECRET')
-    private ATExpiry = this.configService.get<string>('ACCESS_TOKEN_EXPIRY')
+  private ACCESS_TOKEN_SECRET = this.configService.get<string>(
+    'ACCESS_TOKEN_SECRET',
+  );
+  private ACCESS_TOKEN_EXPIRY = this.configService.get<string>(
+    'ACCESS_TOKEN_EXPIRY',
+  );
+  private AWS_FOLDER = this.configService.get<string>(
+    'AWS_FOLDER',
+  );
 
-    async authGoogleCallback(res:Response,user:googlePayload){
-      const db_user=await this.getUserByEmail(user.email)
-      if(!db_user){
-       const name=user.first_name+user.last_name
-       const new_user=await this.prisma.user
-        .create({
-          data: {
-           name:name,
-           email:user.email,
-           isLocaAuth:false,
-           googleId:user.googleId
-          }
-        })
-        const payload={email:user.email,sub:new_user.id}
-        const access_token=await this.
-        generateToken(payload,this.ATSecret,this.ATExpiry)
-        const refresh_token=await this.
-        generateToken(payload,this.RTSecret,this.RTExpiry)
+  private selectUserFields = {
+    id: true,
+    email: true,
+    name: true,
+    isLocalAuth: true,
+    googleId: true,
+    createdAt: true,
+    updatedAt: true,
+  };
+  async authGoogleCallback(res: Response, user: googlePayload) {
+    const db_user = await this.getUserByEmail(user.email);
+    if (!db_user) {
+      const name = user.first_name + ' ' + user.last_name;
+      const new_user = await this.prisma.user.create({
+        data: {
+          name: name,
+          email: user.email,
+          isLocalAuth: false,
+          googleId: user.googleId,
+        },
+      });
+      const payload = { email: user.email, sub: new_user.id };
+      const access_token = await this.generateToken(
+        payload,
+        this.ACCESS_TOKEN_SECRET,
+        this.ACCESS_TOKEN_EXPIRY,
+      );
 
-         await this.prisma.user.update({
-          where:{id:new_user.id},
-          data:{hashedRt:refresh_token}
-         })
-         this.setCookie('access_token',access_token,res)
-         this.setCookie('refresh_token',refresh_token,res)
-         return {access_token,refresh_token}
-      }
-      if(db_user&&db_user.isLocaAuth){
-        throw new HttpException("This email not linked to google, please user email and password to login",HttpStatus.BAD_REQUEST)
-      }
-      const payload={email:db_user.email,sub:db_user.id}
-      const access_token=await this.
-      generateToken(payload,this.ATSecret,this.ATExpiry)
-      const refresh_token=await this.
-      generateToken(payload,this.RTSecret,this.RTExpiry)
-       
-       await this.prisma.user.update({
-        where:{id:db_user.id},
-        data:{hashedRt:refresh_token}
-       })
-       this.setCookie('access_token',access_token,res)
-       this.setCookie('refresh_token',refresh_token,res)
-       return {access_token,refresh_token}
+      this.setCookie('access_token', access_token, res);
+      return { access_token };
     }
-
-    async signUp(dto:signUpDto){
-      try {
-        const hasedPassword=await hash(dto.password)
-        const user = await this.prisma.user
-        .create({
-          data: {
-           name:dto.name,
-           email:dto.email,
-           password:hasedPassword
-          }
-        })
-        return user
-      } catch (error) {
-        if (error instanceof PrismaClientKnownRequestError){
-          if (error.code === 'P2002') {
-            throw new ForbiddenException('Credentials taken');
-          }
-        }
-        throw error;
-      }
+    if (db_user && db_user.isLocalAuth) {
+      throw new HttpException(
+        'This email not linked to google, please use email and password to login',
+        HttpStatus.BAD_REQUEST,
+      );
     }
+    const payload = { email: db_user.email, sub: db_user.id };
+    const access_token = await this.generateToken(
+      payload,
+      this.ACCESS_TOKEN_SECRET,
+      this.ACCESS_TOKEN_EXPIRY,
+    );
 
-async signIn(dto:signInDto,res:Response){
-  const user=await this.getUserByEmail(dto.email)
-  const passwordMatch=await this.isPasswordMatch(user.password,dto.password)
-  if(!passwordMatch){
-    throw new HttpException("Invalid credential",HttpStatus.BAD_REQUEST)
+    this.setCookie('access_token', access_token, res);
+    return { access_token };
   }
-  const payload={email:user.email,sub:user.id}
-  const access_token=await this.
-  generateToken(payload,this.ATSecret,this.ATExpiry)
-  const refresh_token=await this.
-  generateToken(payload,this.RTSecret,this.RTExpiry)
-   
-   await this.prisma.user.update({
-    where:{email:user.email},
-    data:{hashedRt:refresh_token}
-   })
-   this.setCookie('access_token',access_token,res)
-   this.setCookie('refresh_token',refresh_token,res)
-   return {access_token,refresh_token}
-}
 
-async refreshToken(payload:payload,tokenHash:string,res:Response){
-  const token_exist=await this.tokenExist(payload.sub,tokenHash)
-  if(!token_exist){
-    await this.removeToken(payload.sub)
-    throw new HttpException("Token compromised",HttpStatus.FORBIDDEN)
+  async signUp(dto: signUpDto,avatar:Express.Multer.File) {
+    const hasedPassword = await hash(dto.password);
+    const avatar_key= await this.fileService.fileUpload(avatar,this.AWS_FOLDER)
+    const user = await this.prisma.user.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
+        password: hasedPassword,
+        avatar:avatar_key
+      },
+    });
+    return user;
   }
-  const payload_data={email:payload.email,sub:payload.sub}
-  const access_token=await this.
-  generateToken(payload_data,this.ATSecret,this.ATExpiry)
-  const refresh_token=await this.
-  generateToken(payload_data,this.RTSecret,this.RTExpiry)
-    await this.prisma.user.updateMany({
-    where:{email:payload.email,id:payload.sub},
-    data:{hashedRt:refresh_token}
-    })
-    this.setCookie('access_token',access_token,res)
-    this.setCookie('refresh_token',refresh_token,res)
-    return refresh_token
-}
 
-async Logout(res:Response,user:payload){
-await this.prisma.user.update({
-  where:{
-    id:user.sub
-  },
-  data:{
-    hashedRt:null
+  async signIn(dto: signInDto, res: Response) {
+    const user = await this.getUserByEmail(dto.email);
+    if (!user) {
+      throw new HttpException('Invalid credential', HttpStatus.FORBIDDEN);
+    }
+    const passwordMatch = await this.isPasswordMatch(
+      user.password,
+      dto.password,
+    );
+    if (!passwordMatch) {
+      throw new HttpException('Invalid credential', HttpStatus.FORBIDDEN);
+    }
+    const payload = { email: user.email, sub: user.id };
+    const access_token = await this.generateToken(
+      payload,
+      this.ACCESS_TOKEN_SECRET,
+      this.ACCESS_TOKEN_EXPIRY,
+    );
+    this.setCookie('access_token', access_token, res);
+    // await new Promise((resolve) => setTimeout(resolve, 4000));
+    return user;
   }
-})
-this.clearCookie('access_token',res)
-this.clearCookie('refresh_token',res)
-return {sucess:true} 
-}
 
-async getAllUser(){
-  return await this.prisma.user.findMany()
-}
+  async validateUser(email: string, password: string): Promise<any> {
+    const user = await this.getUserByEmail(email);
+    const passwordMatch: boolean = await this.isPasswordMatch(
+      user.password,
+      password,
+    );
+    if (!passwordMatch)
+      throw new HttpException('Invalid credentials', HttpStatus.BAD_REQUEST);
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+    };
+  }
 
+  async Logout(res: Response) {
+    this.clearCookie('access_token', res);
+    return { sucess: true };
+  }
 
+  async getAllUser() {
+    return await this.prisma.user.findMany({
+      select: this.selectUserFields,
+    });
+  }
 
-//untility...........................................
+  //untility...........................................
 
-isPasswordMatch(expectedPassword:string,actualPassword:string){
-return verify(expectedPassword,actualPassword)
-}
+  isPasswordMatch(expectedPassword: string, actualPassword: string) {
+    return verify(expectedPassword, actualPassword);
+  }
 
-tokenExist(id:number,tokenHash:string){
-  return this.prisma.user.findFirst({
-    where:{id,hashedRt:tokenHash}
-  })
-}
-removeToken(id:number){
-  return this.prisma.user.updateMany({
-    where:{id},
-    data:{hashedRt:null}
-  })
-}
+  getUserByEmail(email: string) {
+    return this.prisma.user.findUnique({
+      where: { email },
+    });
+  }
 
-getUserByEmail(email:string){
-  return this.prisma.user.findUnique({
-    where:{email}
-  })
-}
+  generateToken(payload: payload, secret: string, expiry: string) {
+    return this.jwtService.signAsync(payload, {
+      expiresIn: expiry,
+      secret: secret,
+    });
+  }
 
-generateToken(payload:payload,secret:string,expiry:string){
-return this.jwtService.signAsync(payload,
-  {expiresIn:expiry,secret:secret})
-}
+  setCookie(key: string, token: string, res: Response) {
+    res.cookie(key, token, { httpOnly: true });
+  }
 
-setCookie(key:string,token:string,res:Response){
-  res.cookie(key,token,{httpOnly:true})
-}
-
-clearCookie(key:string,res:Response){
-  res.clearCookie(key)
-}
-
+  clearCookie(key: string, res: Response) {
+    res.clearCookie(key);
+  }
 }
