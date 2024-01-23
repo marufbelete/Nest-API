@@ -113,20 +113,20 @@ export class AuthService {
     return user;
   }
 
-  async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.getUserByEmail(email);
-    const passwordMatch: boolean = await this.isPasswordMatch(
-      user.password,
-      password,
-    );
-    if (!passwordMatch)
-      throw new HttpException('Invalid credentials', HttpStatus.BAD_REQUEST);
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    };
-  }
+  // async validateUser(email: string, password: string): Promise<any> {
+  //   const user = await this.getUserByEmail(email);
+  //   const passwordMatch: boolean = await this.isPasswordMatch(
+  //     user.password,
+  //     password,
+  //   );
+  //   if (!passwordMatch)
+  //     throw new HttpException('Invalid credentials', HttpStatus.BAD_REQUEST);
+  //   return {
+  //     id: user.id,
+  //     email: user.email,
+  //     name: user.name,
+  //   };
+  // }
 
   async Logout(res: Response) {
     this.clearCookie('access_token', res);

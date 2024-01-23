@@ -1,10 +1,10 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { googlePayload, payload } from '../types';
+import { payload } from '../types';
 
 export const GetCurrentUser = createParamDecorator(
-  (data: unknown, context: ExecutionContext): payload|googlePayload => {
+  (data: unknown, context: ExecutionContext): payload => {
     const request = context.switchToHttp().getRequest();
-    const user = request.user as payload|googlePayload;
+    const user = request.user as payload;
     return user;
   },
 );
