@@ -11,8 +11,9 @@ import { TimeoutError } from 'rxjs';
 @Catch()
 export class AllExceptionsFilter extends BaseExceptionFilter {
   catch(exception: any, host: ArgumentsHost): any {
-    if (exception instanceof PrismaClientKnownRequestError) {
-      console.log(exception.code);
+    console.log(exception);
+    console.log("exception")
+    if (exception instanceof PrismaClientKnownRequestError) {;
       if (exception.code === 'P2002') {
         super.catch(new ForbiddenException('Credentials taken'), host);
       }

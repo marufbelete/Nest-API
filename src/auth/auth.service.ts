@@ -1,13 +1,15 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
-import { HttpException } from '@nestjs/common/exceptions';
+import { ForbiddenException, HttpException } from '@nestjs/common/exceptions';
 import { PrismaService } from '../prisma/prisma.service';
 import { signInDto, signUpDto } from './dtos';
 import { hash, verify } from 'argon2';
-import { googlePayload, payload } from './types';
+import { RefreshTokenFilter, googlePayload, payload } from './types';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { FileService } from 'src/file/file.service';
+import * as CsrfTokens from 'csrf';
+
 
 @Injectable()
 export class AuthService {
@@ -15,18 +17,25 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private fileService:FileService
+    private fileService: FileService,
   ) {}
 
-  private ACCESS_TOKEN_SECRET = this.configService.get<string>(
+  readonly ACCESS_TOKEN_SECRET = this.configService.get<string>(
     'ACCESS_TOKEN_SECRET',
   );
-  private ACCESS_TOKEN_EXPIRY = this.configService.get<string>(
+  readonly ACCESS_TOKEN_EXPIRY = this.configService.get<string>(
     'ACCESS_TOKEN_EXPIRY',
   );
-  private AWS_FOLDER = this.configService.get<string>(
-    'AWS_FOLDER',
+  readonly REFRESH_TOKEN_SECRET = this.configService.get<string>(
+    'REFRESH_TOKEN_SECRET',
   );
+  readonly REFRESH_TOKEN_EXPIRY = this.configService.get<string>(
+    'REFRESH_TOKEN_EXPIRY',
+  );
+  private AWS_FOLDER = this.configService.get<string>('AWS_FOLDER');
+
+  private FRONTEND_BASE_URL =
+    this.configService.get<string>('FRONTEND_BASE_URL');
 
   private selectUserFields = {
     id: true,
@@ -55,9 +64,15 @@ export class AuthService {
         this.ACCESS_TOKEN_SECRET,
         this.ACCESS_TOKEN_EXPIRY,
       );
+      const refresh_token = await this.generateToken(
+        payload,
+        this.REFRESH_TOKEN_SECRET,
+        this.REFRESH_TOKEN_EXPIRY,
+      );
 
       this.setCookie('access_token', access_token, res);
-      return { access_token };
+      this.setCookie('refresh_token', refresh_token, res);
+      return;
     }
     if (db_user && db_user.isLocalAuth) {
       throw new HttpException(
@@ -71,33 +86,41 @@ export class AuthService {
       this.ACCESS_TOKEN_SECRET,
       this.ACCESS_TOKEN_EXPIRY,
     );
-
+    const refresh_token = await this.generateToken(
+      payload,
+      this.REFRESH_TOKEN_SECRET,
+      this.REFRESH_TOKEN_EXPIRY,
+    );
     this.setCookie('access_token', access_token, res);
-    return { access_token };
+    this.setCookie('refresh_token', refresh_token, res);
+    return;
   }
 
-  async signUp(dto: signUpDto,avatar:Express.Multer.File) {
+  async signUp(dto: signUpDto, avatar: Express.Multer.File) {
     const hasedPassword = await hash(dto.password);
-    const avatar_key= await this.fileService.fileUpload(avatar,this.AWS_FOLDER)
+    const avatar_key = await this.fileService.fileUpload(
+      avatar,
+      this.AWS_FOLDER,
+    );
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
         email: dto.email,
         password: hasedPassword,
-        avatar:avatar_key
+        avatar: avatar_key,
       },
     });
     return user;
   }
 
-  async signIn(dto: signInDto, res: Response) {
-    const user = await this.getUserByEmail(dto.email);
+  async signIn(incoming_user: signInDto, res: Response) {
+    const user = await this.getUserByEmail(incoming_user.email);
     if (!user) {
       throw new HttpException('Invalid credential', HttpStatus.FORBIDDEN);
     }
     const passwordMatch = await this.isPasswordMatch(
       user.password,
-      dto.password,
+      incoming_user.password,
     );
     if (!passwordMatch) {
       throw new HttpException('Invalid credential', HttpStatus.FORBIDDEN);
@@ -108,10 +131,36 @@ export class AuthService {
       this.ACCESS_TOKEN_SECRET,
       this.ACCESS_TOKEN_EXPIRY,
     );
+    const refresh_token = await this.generateToken(
+      payload,
+      this.REFRESH_TOKEN_SECRET,
+      this.REFRESH_TOKEN_EXPIRY,
+    );
+    await this.addToken(refresh_token, payload.sub);
     this.setCookie('access_token', access_token, res);
-    // await new Promise((resolve) => setTimeout(resolve, 4000));
+    this.setCookie('refresh_token', refresh_token, res);
     return user;
   }
+
+  // async refreshToken(payload: payload, tokenHash: string, res: Response) {
+  //   const token = await this.tokenExist(payload.sub, tokenHash);
+  //   if (!token || token.blacklist) {
+  //     await this.removeToken({ userId: payload.sub });
+  //     throw new HttpException('Token compromised', HttpStatus.FORBIDDEN);
+  //   }
+  //   const payload_data = { email: payload.email, sub: payload.sub };
+  //   const refresh_token = await this.generateToken(
+  //     payload_data,
+  //     this.REFRESH_TOKEN_SECRET,
+  //     this.REFRESH_TOKEN_EXPIRY,
+  //   );
+  //   await this.prisma.refreshToken.updateMany({
+  //     where: { userId: payload.sub },
+  //     data: { hashedRt: refresh_token },
+  //   });
+  //   this.setCookie('refresh_token', refresh_token, res);
+  //   return refresh_token;
+  // }
 
   // async validateUser(email: string, password: string): Promise<any> {
   //   const user = await this.getUserByEmail(email);
@@ -128,7 +177,14 @@ export class AuthService {
   //   };
   // }
 
-  async Logout(res: Response) {
+  async getCsrfToken(res: Response) {
+    const {csrf_token,secret}=await this.generateCsrfToken()
+    this.setCookie('_csrf',secret, res);
+    return { csrf_token};
+  }
+
+  async logout(res: Response, refresh_token: string, user: payload) {
+    this.removeToken({ hashedRt: refresh_token, userId: user.sub });
     this.clearCookie('access_token', res);
     return { sucess: true };
   }
@@ -139,19 +195,62 @@ export class AuthService {
     });
   }
 
+  googleRedirectUrl() {
+    // Access instance properties or services here
+    return `${this.FRONTEND_BASE_URL}/dashboard/auth`;
+  }
+
   //untility...........................................
 
-  isPasswordMatch(expectedPassword: string, actualPassword: string) {
+  async isPasswordMatch(expectedPassword: string, actualPassword: string) {
     return verify(expectedPassword, actualPassword);
   }
 
-  getUserByEmail(email: string) {
+  async getUserByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
     });
   }
 
-  generateToken(payload: payload, secret: string, expiry: string) {
+  validateToken(token: string, secret: string) {
+    return this.jwtService.verify(token, { secret });
+  }
+
+  async tokenExist(sub: string, refresh_token: string) {
+    return this.prisma.refreshToken.findFirst({
+      where: { userId: sub, hashedRt: refresh_token },
+    });
+  }
+
+  async removeToken(filter: RefreshTokenFilter) {
+    return this.prisma.refreshToken.deleteMany({
+      where: filter,
+    });
+  }
+
+  async addToken(token: string, sub: string) {
+    return this.prisma.refreshToken.create({
+      data: {
+        hashedRt: token,
+        userId: sub,
+      },
+    });
+  }
+
+  async upsertToken(old_token: string, token: string, sub: string) {
+    return this.prisma.refreshToken.upsert({
+      where: { hashedRt: old_token, userId: sub },
+      update: {
+        hashedRt: token,
+      },
+      create: {
+        hashedRt: token,
+        userId: sub,
+      },
+    });
+  }
+
+  async generateToken(payload: payload, secret: string, expiry: string) {
     return this.jwtService.signAsync(payload, {
       expiresIn: expiry,
       secret: secret,
@@ -159,10 +258,25 @@ export class AuthService {
   }
 
   setCookie(key: string, token: string, res: Response) {
-    res.cookie(key, token, { httpOnly: true });
+    res.cookie(key, token, {
+      httpOnly: true,
+      secure: true,
+      sameSite:'none'
+    });
   }
 
   clearCookie(key: string, res: Response) {
-    res.clearCookie(key);
+    res.clearCookie(key, { httpOnly: true, secure: true, sameSite: 'none'});
+  }
+
+  async generateCsrfToken() {
+    const tokens = new CsrfTokens();
+    const secret = tokens.secretSync();
+    const token = tokens.create(secret);
+    return {
+      csrf_token:token,
+      secret
+    };
+    
   }
 }

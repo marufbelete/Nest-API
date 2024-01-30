@@ -12,7 +12,7 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
     console.log(requiredRoles);
-    if (!requiredRoles) {
+    if (!requiredRoles||(requiredRoles.length==0)) {
       return true;
     }
     const { user } = context.switchToHttp().getRequest();
@@ -20,25 +20,3 @@ export class RolesGuard implements CanActivate {
     return requiredRoles.some((role) => user?.roles?.includes(role));
   }
 }
-
-// import { ExecutionContext, Injectable } from '@nestjs/common';
-// import { Reflector } from '@nestjs/core';
-// import { AuthGuard } from '@nestjs/passport';
-// import { IS_PUBLIC_KEY } from '../decorator';
-
-// @Injectable()
-// export class JwtGuard extends AuthGuard('jwt'){
-//     constructor(private reflector: Reflector){
-//         super()
-//     }
-//     canActivate(context: ExecutionContext) {
-//         const isPublic = this.reflector.
-//         getAllAndOverride(IS_PUBLIC_KEY, [
-//           context.getHandler(),
-//           context.getClass(),
-//         ]);
-//         if (isPublic) return true;
-//         return super.canActivate(context);
-
-//   }
-// }

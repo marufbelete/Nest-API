@@ -18,6 +18,7 @@ model User {
   avatar     String?
   isLocalAuth Boolean  @default(true)
   googleId   String?  
+  refreshTokens    RefreshToken[]
   posts      Post[]
 
   @@map("users")
@@ -33,6 +34,17 @@ model Post {
   user        User     @relation(fields: [userId], references: [id])
 
   @@map("posts")
+}
+model RefreshToken {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  hashedRt    String   @unique
+  csrfSecret  String?  @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
 }
 
 enum Role {

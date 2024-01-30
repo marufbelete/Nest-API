@@ -11,15 +11,15 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Redirect,
   Res,
   UploadedFile,
-  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { signUpDto, signInDto, UserResponseDto } from './dtos';
-import { GetCurrentUser, Public } from './decorator';
+import { GetCurrentUser, GetToken, Public } from './decorator';
 import { payload, googlePayload } from './types';
 import { Response } from 'express';
 import { GoogleGuard } from './guards';
@@ -28,30 +28,35 @@ import { AvatarUrlResponseInterceptor } from './intercept/avatarUrl.inrecept';
 import { DefaultPipe } from './pipe/transform/default.pipe';
 import { FileSizeValidationPipe } from 'src/file/pip/validation/fileSize.pipe';
 import { GetGoogleUserInfo } from './decorator/getGoogleUserInfo.decorator';
+import { ConfigService } from '@nestjs/config';
+// import { RefreshTokenGuard } from './guards/refreshToken.guard';
 // import { DefaultPipe } from './pipe/transform/default.pipe';
 // import { Role, RolesAccess } from './decorator/role.decorator';
 // import { RolesGuard } from './guards/role.guard';
-
 @Controller('auth')
+// @Controller({ path:'auth',host: 'http://localhost:3011' })
 export class AuthController {
-  constructor(private authService: AuthService) {}
-
+  constructor(
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) {}
+  private FRONTEND_BASE_URL =
+    this.configService.get<string>('FRONTEND_BASE_URL');
+  private google_redirect_url = `${this.FRONTEND_BASE_URL}`;
   @Get('google')
   @Public()
   @UseGuards(GoogleGuard)
   async authGoogle() {}
-
   @Get('google/callback')
   @Public()
   @UseGuards(GoogleGuard)
+  @Redirect('http://localhost:3011/auth', 302)
   async authGoogleCallback(
     @GetGoogleUserInfo() user: googlePayload,
     @Res({ passthrough: true }) res: Response,
   ) {
-    console.log(user);
-    console.log('user');
-    const tokens = await this.authService.authGoogleCallback(res, user);
-    return tokens;
+    await this.authService.authGoogleCallback(res, user);
+    return { url: `${this.google_redirect_url}/dashboard` };
   }
 
   @Post('signup')
@@ -84,21 +89,51 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Post('signin')
   @Public()
+  // @Public('refresh')
   // @SerializeOptions({
   //   groups: ['role:admin'],
   // })
   @UseInterceptors(AvatarUrlResponseInterceptor)
   async signIn(
-    @Body() dto: signInDto,
+    @Body() user: signInDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserResponseDto> {
-    const result = await this.authService.signIn(dto, res);
+    const result = await this.authService.signIn(user, res);
     return new UserResponseDto(result);
   }
 
-  @Delete('logout')
-  async Logout(@Res({ passthrough: true }) res: Response) {
-    return await this.authService.Logout(res);
+  // @Post('refreshtoken')
+  // @UseGuards(RefreshTokenGuard)
+  // async refreshToken(
+  //   @GetCurrentUser() user: payload,
+  //   @GetToken('refresh_token') tokenHash: string,
+  //   @Res() res: Response,
+  // ) {
+  //   const result = await this.authService.refreshToken(user, tokenHash, res);
+  //   return res.json({ refresh_token: result });
+  // }
+
+  @Get('profile')
+  async authProfile(@GetCurrentUser() user: payload): Promise<UserResponseDto> {
+    const result = await this.authService.getUserByEmail(user.email);
+    return new UserResponseDto(result);
+  }
+
+  @Post('csrfToken')
+  @Public()
+  async authCsrfToken(@Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.getCsrfToken(res);
+    console.log(result)
+    return result;
+  }
+
+  @Post('logout')
+  async logout(
+    @Res({ passthrough: true }) res: Response,
+    @GetToken('refresh_token') tokenHash: string,
+    @GetCurrentUser() user: payload,
+  ) {
+    return this.authService.logout(res, tokenHash, user);
   }
 
   @Get('user')
@@ -110,8 +145,6 @@ export class AuthController {
     @GetCurrentUser() user: payload,
   ) {
     console.log(page);
-    console.log(user);
-    const result = await this.authService.getAllUser();
-    return result;
+    return await this.authService.getAllUser();
   }
 }
