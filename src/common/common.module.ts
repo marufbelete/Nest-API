@@ -1,8 +1,13 @@
-import { Module } from '@nestjs/common';
-import { AuthService } from 'src/auth/auth.service';
+import { Global, Module } from '@nestjs/common';
+import { CommonService } from './common.service';
+import { JwtModule } from '@nestjs/jwt';
 
-
+@Global()
 @Module({
-  imports:[AuthService]
+  imports:[
+    JwtModule.register({}),
+  ],
+  providers:[CommonService],
+  exports:[CommonService]
 })
-export class FileModule {}
+export class CommonModule {}

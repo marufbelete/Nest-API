@@ -9,15 +9,19 @@ import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { FileService } from 'src/file/file.service';
 import * as CsrfTokens from 'csrf';
-
+import * as Twilio from 'twilio';
+import { Prisma } from '@prisma/client';
+import { EventsGateway } from 'src/socket/socket.gateway';
+import { CommonService } from 'src/common/common.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
-    private jwtService: JwtService,
+    private commonService: CommonService,
     private configService: ConfigService,
     private fileService: FileService,
+    private eventsGatway:EventsGateway
   ) {}
 
   readonly ACCESS_TOKEN_SECRET = this.configService.get<string>(
@@ -36,7 +40,10 @@ export class AuthService {
 
   private FRONTEND_BASE_URL =
     this.configService.get<string>('FRONTEND_BASE_URL');
-
+  // private accountSid= this.configService.get<string>('TWILIO_ACCOUNT_SID');
+  // private authToken= this.configService.get<string>('TWILIO_AUTH_TOKEN');
+  private messagingServiceSid= this.configService.get<string>('TWILIO_SERVICE_ID');
+  private client=Twilio()
   private selectUserFields = {
     id: true,
     email: true,
@@ -46,6 +53,8 @@ export class AuthService {
     createdAt: true,
     updatedAt: true,
   };
+
+
   async authGoogleCallback(res: Response, user: googlePayload) {
     const db_user = await this.getUserByEmail(user.email);
     if (!db_user) {
@@ -102,6 +111,7 @@ export class AuthService {
       avatar,
       this.AWS_FOLDER,
     );
+    
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
@@ -110,6 +120,8 @@ export class AuthService {
         avatar: avatar_key,
       },
     });
+    // await this.sendSms('Hello This Maruf, How are you doing','whatsapp:+251945913839')
+    await this.sendSms('Hello This Maruf, How are you doing','+251945913839')
     return user;
   }
 
@@ -139,6 +151,7 @@ export class AuthService {
     await this.addToken(refresh_token, payload.sub);
     this.setCookie('access_token', access_token, res);
     this.setCookie('refresh_token', refresh_token, res);
+    // this.eventsGatway.socketIdEvent()
     return user;
   }
 
@@ -202,6 +215,17 @@ export class AuthService {
 
   //untility...........................................
 
+  async sendSms(message: string, to:string) {
+    return this.client.messages
+    .create({
+      body: message,
+      to: to, // Text your number
+      messagingServiceSid:this.messagingServiceSid,
+      // scheduleType:
+      // from: 'whatsapp:+14155238886', // From a valid Twilio number
+      // from: '+12077473070', // From a valid Twilio number
+    })
+  }
   async isPasswordMatch(expectedPassword: string, actualPassword: string) {
     return verify(expectedPassword, actualPassword);
   }
@@ -213,7 +237,7 @@ export class AuthService {
   }
 
   validateToken(token: string, secret: string) {
-    return this.jwtService.verify(token, { secret });
+    return this.commonService.validateToken(token,secret );
   }
 
   async tokenExist(sub: string, refresh_token: string) {
@@ -223,6 +247,28 @@ export class AuthService {
   }
 
   async removeToken(filter: RefreshTokenFilter) {
+//     let x:Prisma.UserCreateInput
+//     x={
+// posts:{
+  
+// }
+    // }
+    // this.prisma.user.findMany({
+    //   where:{
+    //     posts:{
+    //     some:{title:{contains:"webdev"}}
+    //     }
+    //   }
+    // })
+    const result = await this.prisma.user.findMany({
+      where: {
+        posts: {
+            none: {
+              description: "true"
+            }
+        }
+      }
+    })
     return this.prisma.refreshToken.deleteMany({
       where: filter,
     });
@@ -232,7 +278,7 @@ export class AuthService {
     return this.prisma.refreshToken.create({
       data: {
         hashedRt: token,
-        userId: sub,
+        userId: sub
       },
     });
   }
@@ -251,10 +297,7 @@ export class AuthService {
   }
 
   async generateToken(payload: payload, secret: string, expiry: string) {
-    return this.jwtService.signAsync(payload, {
-      expiresIn: expiry,
-      secret: secret,
-    });
+    return this.commonService.generateToken(payload, secret, expiry);
   }
 
   setCookie(key: string, token: string, res: Response) {
@@ -280,3 +323,55 @@ export class AuthService {
     
   }
 }
+
+
+// import { PrismaClient } from '@prisma/client'
+// const prisma = new PrismaClient()
+
+// function transfer(from: string, to: string, amount: number) {
+//   return prisma.$transaction(async (tx) => {
+//     // 1. Decrement amount from the sender.
+//     const sender = await tx.account.update({
+//       data: {
+//         balance: {
+//           decrement: amount,
+//         },
+//       },
+//       where: {
+//         email: from,
+//       },
+//     })
+
+//     // 2. Verify that the sender's balance didn't go below zero.
+//     if (sender.balance < 0) {
+//       throw new Error(`${from} doesn't have enough to send ${amount}`)
+//     }
+
+//     // 3. Increment the recipient's balance by amount
+//     const recipient = await tx.account.update({
+//       data: {
+//         balance: {
+//           increment: amount,
+//         },
+//       },
+//       where: {
+//         email: to,
+//       },
+//     })
+
+//     return recipient
+//   }, {
+  //   maxWait: 5000, // default: 2000
+  //   timeout: 10000, // default: 5000
+  //   isolationLevel: Prisma.TransactionIsolationLevel.Serializable, // optional, default defined by database configuration
+  // })
+// }
+
+// async function main() {
+//   // This transfer is successful
+//   await transfer('alice@prisma.io', 'bob@prisma.io', 100)
+//   // This transfer fails because Alice doesn't have enough funds in her account
+//   await transfer('alice@prisma.io', 'bob@prisma.io', 100)
+// }
+
+// main()

@@ -5,14 +5,12 @@ import { IS_PUBLIC_KEY } from '../decorator';
 
 @Injectable()
 export class IsAuthenticatedGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest() as Request;
-    const isPublic = this.reflector.getAllAndOverride(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (isPublic) return true;
-    return request.isAuthenticated();
+
+    console.log("from session guard user");
+    console.log(context.getType()==='ws');
+    if(context.getType()==='ws') return false
+    console.log("from session guard user");
+    return true
   }
 }

@@ -6,6 +6,7 @@ import { ArgumentMetadata, Injectable, PipeTransform } from '@nestjs/common';
 export class DefaultPipe implements PipeTransform {
   constructor(private value?: any) {}
   transform(value: any, metadata: ArgumentMetadata) {
+    console.log('here is it',metadata.type)
     return typeof value === 'undefined' ? this.value : value;
   }
 }

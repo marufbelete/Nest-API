@@ -40,7 +40,7 @@ let refresh_token:string
       })
   });
 
-  it('Should return all user user', () => {
+  it('Should return all user', () => {
     return request(app.getHttpServer())
       .get('/auth/user')
       .set('Cookie',[`access_token=${access_token}`,

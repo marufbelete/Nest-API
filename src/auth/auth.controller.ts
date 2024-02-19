@@ -16,24 +16,27 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  UsePipes,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { signUpDto, signInDto, UserResponseDto } from './dtos';
+import { signUpDto, signInDto, UserResponseDto, FormattedUserResponseDto } from './dtos';
 import { GetCurrentUser, GetToken, Public } from './decorator';
 import { payload, googlePayload } from './types';
 import { Response } from 'express';
-import { GoogleGuard } from './guards';
+import { GoogleGuard } from './guards/index.guard';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { AvatarUrlResponseInterceptor } from './intercept/avatarUrl.inrecept';
 import { DefaultPipe } from './pipe/transform/default.pipe';
 import { FileSizeValidationPipe } from 'src/file/pip/validation/fileSize.pipe';
 import { GetGoogleUserInfo } from './decorator/getGoogleUserInfo.decorator';
 import { ConfigService } from '@nestjs/config';
+import { ApiResponse, ApiResponseProperty, ApiTags } from '@nestjs/swagger';
+import { Error4xxResponseDto } from 'src/common/dtos/4xx.dto';
 // import { RefreshTokenGuard } from './guards/refreshToken.guard';
-// import { DefaultPipe } from './pipe/transform/default.pipe';
 // import { Role, RolesAccess } from './decorator/role.decorator';
 // import { RolesGuard } from './guards/role.guard';
 @Controller('auth')
+@ApiTags('Auth')
 // @Controller({ path:'auth',host: 'http://localhost:3011' })
 export class AuthController {
   constructor(
@@ -93,13 +96,18 @@ export class AuthController {
   // @SerializeOptions({
   //   groups: ['role:admin'],
   // })
+  // @UsePipes(new DefaultPipe())
   @UseInterceptors(AvatarUrlResponseInterceptor)
+  @ApiResponse({ status: HttpStatus.OK,type:FormattedUserResponseDto})
+  @ApiResponse({ status: '4XX',type:Error4xxResponseDto})
+  
   async signIn(
     @Body() user: signInDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserResponseDto> {
     const result = await this.authService.signIn(user, res);
     return new UserResponseDto(result);
+    // new FormattedUserResponseDto(result);
   }
 
   // @Post('refreshtoken')
@@ -116,7 +124,8 @@ export class AuthController {
   @Get('profile')
   async authProfile(@GetCurrentUser() user: payload): Promise<UserResponseDto> {
     const result = await this.authService.getUserByEmail(user.email);
-    return new UserResponseDto(result);
+    return  new UserResponseDto(result) 
+    // new FormattedUserResponseDto(result);
   }
 
   @Post('csrfToken')

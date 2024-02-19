@@ -9,19 +9,21 @@ datasource db {
 
 /// user model
 model User {
-  id         String   @id @default(uuid())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  email      String   @unique
-  password   String?
-  name       String
-  avatar     String?
-  isLocalAuth Boolean  @default(true)
-  googleId   String?  
-  refreshTokens    RefreshToken[]
-  posts      Post[]
+  id                String              @id @default(uuid())
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  email             String              @unique
+  password          String?
+  name              String
+  avatar            String?
+  isLocalAuth       Boolean             @default(true)
+  googleId          String?
+  role              Role                @default(USER)
+  refreshTokens     RefreshToken[]
+  posts             Post[]
+  rooms        User_Room[]
 
-  @@map("users")
+  @@map("users") 
 }
 
 model Post {
@@ -30,24 +32,60 @@ model Post {
   updatedAt   DateTime @updatedAt
   title       String
   description String?  @unique
+  image       String?
   userId      String
   user        User     @relation(fields: [userId], references: [id])
 
   @@map("posts")
 }
+
 model RefreshToken {
-  id          String   @id @default(uuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  hashedRt    String   @unique
-  csrfSecret  String?  @unique
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  hashedRt  String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
 
   @@map("refresh_tokens")
+}
+
+model Room {
+  id                String              @id @default(uuid())
+  name              String              @unique
+  type              RoomType    @default(PRIVATE)
+  users             User_Room[]
+
+  @@map("rooms")
+}
+
+model User_Room {
+  id             String       @id @default(uuid())
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+  room           Room @relation(fields: [roomId], references: [id])
+  roomId String
+  isAdmin        Boolean      @default(false)
+  messages       Message[]
+
+  @@unique([userId,roomId])
+  @@map("user_rooms")
+}
+
+model Message {
+  id                String              @id @default(uuid())
+  content           String              @unique
+  user_roomId    String
+  user_room     User_Room     @relation(fields: [user_roomId], references: [id])
+  @@map("messages")
 }
 
 enum Role {
   USER
   ADMIN
+}
+
+enum RoomType {
+  GROUP
+  PRIVATE
 }

@@ -21,20 +21,16 @@ export class JwtGuard extends AuthGuard('jwt') {
       context.getHandler(),
       context.getClass(),
     ]);
-    console.log(isPublic);
-    console.log('for token');
+ 
     if (isPublic) return true;
     //verifying the authenticity of the JWT token
     // return super.canActivate(context);
-    console.log('before access token');
     const request: Request = context.switchToHttp().getRequest();
     const response: Response = context.switchToHttp().getResponse();
 
-    console.log(request.cookies);
-    const { refresh_token, access_token } = request.cookies;
+    const { refresh_token, access_token } = request?.cookies;
     console.log(request.cookies.refresh_token);
     if (!access_token) throw new UnauthorizedException('Unauthorized user');
-
     try {
       this.authService.validateToken(
         access_token,
@@ -109,6 +105,7 @@ export class JwtGuard extends AuthGuard('jwt') {
     }
   }
   async activate(context: ExecutionContext): Promise<boolean> {
+    //this also verify for token built in for passport
     return super.canActivate(context) as Promise<boolean>;
   }
   clearAllCookies(response: Response) {

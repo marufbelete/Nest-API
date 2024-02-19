@@ -1,23 +1,23 @@
 import {
   MiddlewareConsumer,
   Module,
-  NestModule,
-  RequestMethod,
+  NestModule
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt/dist';
 import { JwtStrategy, GoogleStrategy } from './strategy';
 import { APP_GUARD } from '@nestjs/core';
-import { JwtGuard } from './guards';
-import { AuthMiddleware } from './middleware/auth.middleware';
+import { JwtGuard } from './guards/index.guard';
+// import { AuthMiddleware } from './middleware/auth.middleware';
 import { RolesGuard } from './guards/role.guard';
 // import { PassportModule } from '@nestjs/passport';
 import { LocalStrategy } from './strategy/local.strategy';
 // import { TransformResponseInterceptor } from 'src/common/intercept/formatResponse.inrecept';
 // import { APP_INTERCEPTOR } from '@nestjs/core';
 import { FileModule } from 'src/file/file.module';
-// import { Session } from './strategy/session.strategy';
+import { Session } from './strategy/session.strategy';
+// import { IsAuthenticatedGuard } from './guards/session.guard';
 // import { PassportModule } from '@nestjs/passport';
 // import { RefreshTokenGuard } from './guards/refreshToken.guard';
 // import { RefreshTokenStrategy } from './strategy/refreshToken.strategy';
@@ -32,6 +32,10 @@ import { FileModule } from 'src/file/file.module';
     // {
     //   provide: APP_GUARD,
     //   useClass: RefreshTokenGuard,
+    // },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: IsAuthenticatedGuard,
     // },
     {
       provide: APP_GUARD,
@@ -48,7 +52,7 @@ import { FileModule } from 'src/file/file.module';
     // RefreshTokenStrategy,
     LocalStrategy,
     GoogleStrategy,
-    // Session
+    Session
   ],
   controllers: [AuthController],
   exports:[AuthService]
@@ -57,16 +61,16 @@ export class AuthModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     //we can also pass the controller class instead of `product`
     // consumer.apply(ProductMiddleware).forRoutes('product')
-    consumer.apply(AuthMiddleware).forRoutes(
-      {
-        path: 'auth/google',
-        method: RequestMethod.GET,
-      },
-      {
-        path: 'auth/signin',
-        method: RequestMethod.DELETE,
-      },
-    );
+    // consumer.apply(AuthMiddleware).forRoutes(
+    //   {
+    //     path: 'auth/google',
+    //     method: RequestMethod.GET,
+    //   },
+    //   {
+    //     path: 'auth/signin',
+    //     method: RequestMethod.DELETE,
+    //   },
+    // );
     // .apply(AnotherMiddleware).forRoutes({
     //   path:'product/:id',
     //   method:RequestMethod.GET

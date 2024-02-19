@@ -12,7 +12,7 @@ services:
     depends_on: 
       - dev-db
     ports:
-      - 80:4000
+      - 8080:4000
     # env_file: .env
     environment:
       - NODE_ENV=development

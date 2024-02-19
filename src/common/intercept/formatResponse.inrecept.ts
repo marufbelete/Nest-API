@@ -7,26 +7,26 @@ import {
 import { Observable } from 'rxjs';
 import { map, timeout } from 'rxjs/operators';
 import { Request } from 'express';
-export interface CustomResponse<T> {
+export interface CustomFormattedResponse<T> {
   data: T;
 }
 
 @Injectable()
 export class TransformResponseInterceptor<T>
-  implements NestInterceptor<T, CustomResponse<T>>
+  implements NestInterceptor<T, CustomFormattedResponse<T>>
 {
   intercept(
     context: ExecutionContext,
     next: CallHandler,
-  ): Observable<CustomResponse<T>> {
+  ): Observable<CustomFormattedResponse<T>> {
   
     const request: Request = context.switchToHttp().getRequest();
-    //for redirect route
+    //for redirect route //webhook
     if (request.url.split('?')[0] === '/auth/google/callback') {
       return next.handle();
     }
     return next.handle().pipe(
-      timeout(5000), //time out for every request
+      timeout(7000), //time out for every request
       map((data) => {
         return {
           data

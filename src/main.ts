@@ -5,6 +5,7 @@ import * as cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from './common/Error/exceptionFilter';
 import helmet from 'helmet';
 import * as csurf from 'csurf';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 // import { RolesGuard } from './auth/guards/role.guard';
 // import { DefaultPipe } from './auth/pipe/transform/default.pipe';
 async function bootstrap() {
@@ -27,6 +28,14 @@ async function bootstrap() {
   const { httpAdapter } = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
   // app.useGlobalGuards(new RolesGuard())
+  const config = new DocumentBuilder()
+    .setTitle('API DOC TEST')
+    .setDescription('The Test API')
+    .setVersion('1.0')
+    .addTag('APIs')
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api_doc', app, document);
   // app.setGlobalPrefix('api');
   app.use(cookieParser());
   app.use(helmet());
