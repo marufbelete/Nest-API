@@ -20,10 +20,18 @@ export class ChatService {
         select:{
             id:true,
             content:true,
+            createdAt:true,
+            updatedAt:true,
             user_room:{
                 select:{
                     id:true,
                     isAdmin:true,
+                    room:{
+                        select:{
+                            id:true,
+                            name:true
+                        }
+                    },
                     user:{
                         select:
                             {
@@ -88,6 +96,8 @@ export class ChatService {
       select:{
         id:true,
         content:true,
+        createdAt:true,
+        updatedAt:true,
         user_room:{
            select:{
             id:true,
@@ -105,6 +115,5 @@ export class ChatService {
        })
        
     }
-
 
 }

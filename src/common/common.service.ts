@@ -23,9 +23,23 @@ constructor(
       readonly REFRESH_TOKEN_EXPIRY = this.configService.get<string>(
         'REFRESH_TOKEN_EXPIRY',
       );
+
 validateToken(token: string, secret: string) {
     return this.jwtService.verify(token, { secret });
   }
+
+async fetchUserRooms(userId:string){
+  console.log(userId)
+    return await this.prisma.room.findMany({
+         where:{
+             users:{
+                 some:{
+                   user:{id:userId}
+                 }
+             }
+         }
+     })
+ }
 
 async generateToken(payload: payload, secret: string, expiry: string) {
 return this.jwtService.signAsync(payload, {

@@ -1,5 +1,5 @@
-import { Prisma } from "@prisma/client";
+import { MessageResponseDto } from "src/chat/dtos";
 
 export interface IEmitEvent{
-    chatMessage:(payload:Prisma.MessageCreateInput) =>void;
+    chatMessage:(payload:MessageResponseDto) =>void;
 }

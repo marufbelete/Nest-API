@@ -18,20 +18,25 @@ import { GetCurrentUser } from 'src/auth/decorator';
 import { payload } from 'src/auth/types';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
-    FormattedRoomMessageResponseDto,
   FormattedRoomResponseDto,
   JoinRoomDto,
-  RoomMessageResponseDto,
   RoomResponseDto,
   createRoomDto,
 } from './dtos/room.dto';
+import { EventsGateway } from 'src/socket/socket.gateway';
 
 @Controller('chat')
 @ApiTags('Chat')
 export class ChatController {
-  constructor(private chatService: ChatService) {}
+  constructor(
+    private chatService: ChatService,
+    private eventsGateway: EventsGateway,
+  ) {}
 
-  @ApiResponse({ status: HttpStatus.OK, type: FormattedMessageResponseDto })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    type: FormattedMessageResponseDto,
+  })
   @HttpCode(HttpStatus.CREATED)
   @Post('message')
   async addMessage(
@@ -43,12 +48,13 @@ export class ChatController {
       roomId: message.roomId,
     });
     if (!user_room) throw new NotFoundException('resource not');
-    const result=await this.chatService.createChat({
+    const result = await this.chatService.createChat({
       content: message.content,
       user_room_id: user_room.id,
     });
     //broadcast message to all in room
-    return result
+    this.eventsGateway.sendMessage(result.user_room.room.name, result);
+    return result;
   }
 
   @ApiResponse({ status: HttpStatus.OK, type: FormattedRoomResponseDto })
@@ -61,21 +67,26 @@ export class ChatController {
     });
   }
 
-  @ApiResponse({ status: HttpStatus.OK, type: FormattedRoomMessageResponseDto })
+  @ApiResponse({ status: HttpStatus.OK, type: FormattedMessageResponseDto })
   @HttpCode(HttpStatus.OK)
   @Get('message')
-  async getRoomMessage(@Param('roomId') roomId: string):Promise<RoomMessageResponseDto[]> {
-    const result=await this.chatService.fetchRoomChat(roomId);
-     return result
+  async getRoomMessage(
+    @Param('roomId') roomId: string,
+  ): Promise<MessageResponseDto[]> {
+    const result = await this.chatService.fetchRoomChat(roomId);
+    return result;
   }
 
   @HttpCode(HttpStatus.CREATED)
   @Post('room/join')
-  async addUserToRoom(@Body() param:JoinRoomDto,@GetCurrentUser() user: payload,) {
-    const result=await this.chatService.createUserRoom(param.roomId,user.sub);
-     return result
+  async addUserToRoom(
+    @Body() param: JoinRoomDto,
+    @GetCurrentUser() user: payload,
+  ) {
+    const result = await this.chatService.createUserRoom(
+      param.roomId,
+      user.sub,
+    );
+    return result;
   }
-
-
-
 }

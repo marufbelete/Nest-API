@@ -25,13 +25,15 @@ export class MessageResponseDto {
 
   id:string;
   content: string;
+  createdAt:Date;
+  updatedAt:Date;
   user_room:{
     id:string;
     isAdmin:boolean;
     user:{
       id:string;
-      email:string;
       name:string;
+      email:string;
 
     }
     
@@ -43,7 +45,7 @@ export class MessageResponseDto {
 }
 
 export class FormattedMessageResponseDto {
-  data: MessageResponseDto;
+  data: MessageResponseDto[];
   
 }
 

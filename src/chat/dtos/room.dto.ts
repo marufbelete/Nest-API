@@ -39,29 +39,9 @@ export class JoinRoomDto {
 }
 
 
-export class RoomMessageResponseDto {  
-
-  id:string;
-  content: string;
-  user_room:{
-    user:{
-      id:string;
-      name:string;
-      email:string;
-    }
-  }
-  
-  constructor(partial: Partial<RoomResponseDto>) {
-    Object.assign(this, partial);
-  }
-}
-
 export class FormattedRoomResponseDto {
   data: RoomResponseDto;
   
 }
-export class FormattedRoomMessageResponseDto {
-  data: RoomMessageResponseDto[];
-  
-}
+
 

@@ -15,6 +15,8 @@ import { WsException } from '@nestjs/websockets';
 import { NextFunction} from 'express';
 import { IListenEvent } from './types/ListenEvents.type';
 import { CommonService } from 'src/common/common.service';
+import { payload } from 'src/auth/types';
+import { MessageResponseDto } from 'src/chat/dtos';
 @Injectable()
 @WebSocketGateway({ cookie: true })
 export class EventsGateway implements OnGatewayConnection {
@@ -69,6 +71,16 @@ export class EventsGateway implements OnGatewayConnection {
     return client.id;
   }
 
+  // @SubscribeMessage<keyof IListenEvent>('chatMessage')
+  async sendMessage(
+    room:string,
+    data:MessageResponseDto ) {
+      console.log("in gateway")
+      console.log(room,data)
+    this.server.to(room).emit('chatMessage',data)
+    return 
+  }
+
   // @SubscribeMessage('events')
   // handleEvent(client: Client, data: unknown): WsResponse<unknown> {
   //   const event = 'events';
@@ -77,15 +89,29 @@ export class EventsGateway implements OnGatewayConnection {
 
 
   //helper
-  SocketAuthMiddleware(socket: Socket, next:NextFunction): void {
-    console.log(socket.handshake.headers.cookie);
+  SocketAuthMiddleware=async(socket: Socket, next:NextFunction)=> {
+    // console.log(socket.handshake.headers);
+    // console.log(this.commonService.ACCESS_TOKEN_SECRET);
     try {
-      this.commonService.validateToken(
+      const user_info:payload=this.commonService.validateToken(
         socket.handshake.headers.token as string,
         this.commonService.ACCESS_TOKEN_SECRET,
       );
+  
+    const user_rooms=await this.commonService.fetchUserRooms(user_info.sub)
+
+    console.log(user_rooms)
+    console.log(user_rooms.map(room=>room.name))
+    console.log(socket.id)
+    socket.join(user_rooms.map(room=>room.name))
+    const sockets = await this.server.fetchSockets();
+    console.log(sockets)
+    console.log(socket.rooms)
+
+      // socket.
       next();
-    } catch {
+    } catch(error) {
+      console.log(error)
       next(new WsException('Invalid credentials.'));
     }
   }

@@ -10,8 +10,6 @@ datasource db {
 /// user model
 model User {
   id                String              @id @default(uuid())
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
   email             String              @unique
   password          String?
   name              String
@@ -22,31 +20,31 @@ model User {
   refreshTokens     RefreshToken[]
   posts             Post[]
   rooms        User_Room[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@map("users") 
 }
 
 model Post {
   id          String   @id @default(uuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
   title       String
   description String?  @unique
   image       String?
   userId      String
   user        User     @relation(fields: [userId], references: [id])
-
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   @@map("posts")
 }
 
 model RefreshToken {
   id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
   hashedRt  String   @unique
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   @@map("refresh_tokens")
 }
 
@@ -55,7 +53,8 @@ model Room {
   name              String              @unique
   type              RoomType    @default(PRIVATE)
   users             User_Room[]
-
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   @@map("rooms")
 }
 
@@ -67,6 +66,8 @@ model User_Room {
   roomId String
   isAdmin        Boolean      @default(false)
   messages       Message[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@unique([userId,roomId])
   @@map("user_rooms")
@@ -74,9 +75,11 @@ model User_Room {
 
 model Message {
   id                String              @id @default(uuid())
-  content           String              @unique
-  user_roomId    String
-  user_room     User_Room     @relation(fields: [user_roomId], references: [id])
+  content           String             
+  user_roomId       String
+  user_room         User_Room     @relation(fields: [user_roomId], references: [id])
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   @@map("messages")
 }
 
