@@ -17,6 +17,7 @@ import { LocalStrategy } from './strategy/local.strategy';
 // import { APP_INTERCEPTOR } from '@nestjs/core';
 import { FileModule } from 'src/file/file.module';
 import { Session } from './strategy/session.strategy';
+import { SignupListener } from './listener/signup.listener';
 // import { IsAuthenticatedGuard } from './guards/session.guard';
 // import { PassportModule } from '@nestjs/passport';
 // import { RefreshTokenGuard } from './guards/refreshToken.guard';
@@ -25,7 +26,8 @@ import { Session } from './strategy/session.strategy';
   imports: [
     JwtModule.register({}),
     // PassportModule.register({session:true}),
-    FileModule
+    FileModule,
+    
   ],
   //runs according to given sequence
   providers: [
@@ -52,10 +54,12 @@ import { Session } from './strategy/session.strategy';
     // RefreshTokenStrategy,
     LocalStrategy,
     GoogleStrategy,
-    Session
+    Session,
+    SignupListener
+
   ],
   controllers: [AuthController],
-  exports:[AuthService]
+  // exports:[AuthService]
 })
 export class AuthModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

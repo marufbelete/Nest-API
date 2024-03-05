@@ -12,6 +12,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   //to apply the class validator
   // app.useGlobalPipes(new DefaultPipe())
+
+  //for transformer
   app.useGlobalPipes(
     new ValidationPipe({
       //remove unlisted field
@@ -22,9 +24,11 @@ async function bootstrap() {
       // disableErrorMessages:true
     }),
   );
-  //for transformer
+
+   //for interceptor
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
-  //for interceptor
+
+
   const { httpAdapter } = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
   // app.useGlobalGuards(new RolesGuard())

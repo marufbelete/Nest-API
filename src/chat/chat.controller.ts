@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import {
@@ -24,8 +25,10 @@ import {
   createRoomDto,
 } from './dtos/room.dto';
 import { EventsGateway } from 'src/socket/socket.gateway';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
+import { CHAT_ENDPOINT } from './constants/endpoints';
 
-@Controller('chat')
+@Controller(CHAT_ENDPOINT.CHAT)
 @ApiTags('Chat')
 export class ChatController {
   constructor(
@@ -38,7 +41,7 @@ export class ChatController {
     type: FormattedMessageResponseDto,
   })
   @HttpCode(HttpStatus.CREATED)
-  @Post('message')
+  @Post(CHAT_ENDPOINT.MESSAGE)
   async addMessage(
     @Body() message: createMessageDto,
     @GetCurrentUser() user: payload,
@@ -59,7 +62,7 @@ export class ChatController {
 
   @ApiResponse({ status: HttpStatus.OK, type: FormattedRoomResponseDto })
   @HttpCode(HttpStatus.CREATED)
-  @Post('room')
+  @Post(CHAT_ENDPOINT.ROOM)
   async addRoom(@Body() room: createRoomDto): Promise<RoomResponseDto> {
     return this.chatService.createRoom({
       name: room.name,
@@ -67,9 +70,11 @@ export class ChatController {
     });
   }
 
+  @Get(CHAT_ENDPOINT.MESSAGE)
   @ApiResponse({ status: HttpStatus.OK, type: FormattedMessageResponseDto })
   @HttpCode(HttpStatus.OK)
-  @Get('message')
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(200000)
   async getRoomMessage(
     @Param('roomId') roomId: string,
   ): Promise<MessageResponseDto[]> {
@@ -78,7 +83,7 @@ export class ChatController {
   }
 
   @HttpCode(HttpStatus.CREATED)
-  @Post('room/join')
+  @Post(CHAT_ENDPOINT.JOIN_ROOM)
   async addUserToRoom(
     @Body() param: JoinRoomDto,
     @GetCurrentUser() user: payload,
@@ -89,4 +94,15 @@ export class ChatController {
     );
     return result;
   }
+
+  @ApiResponse({
+    status: HttpStatus.OK
+    })
+  @Get(CHAT_ENDPOINT.QUEUE)
+  async queueTest() {
+    const result = this.chatService.transcode({data:"test mp4 transmission"});
+    console.log('returned')
+    return result
+  }
+
 }

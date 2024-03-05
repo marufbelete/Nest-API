@@ -1,5 +1,5 @@
 import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 // import { FileService } from './file/file.service';
@@ -18,15 +18,46 @@ import { PostModule } from './post/post.module';
 import { SocketModule } from './socket/socket.module';
 import { CommonModule } from './common/common.module';
 import { ChatModule } from './chat/chat.module';
+import { CacheModule, CacheStore } from '@nestjs/cache-manager';
+import {redisStore} from 'cache-manager-redis-yet';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { BullModule } from '@nestjs/bull';
+import { QUEUE } from './chat/constants/endpoints';
+import { QueueModule } from './queue/queue.module';
+import { EmailModule } from './email/email.module';
+import { SmsModule } from './sms/sms.module';
 @Module({
   imports: [
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'client'),
-    }),
+    // ServeStaticModule.forRoot({
+    //   rootPath: join(__dirname, '..', 'client'),
+    // }),
     ConfigModule.forRoot({ isGlobal: true }),
     MulterModule.register({
       storage: memoryStorage(),
     }),
+    EventEmitterModule.forRoot({global:true}),
+    CacheModule.register({
+      isGlobal:true,
+      store: redisStore,
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+      // username: process.env.REDIS_USERNAME, 
+      // password: process.env.REDIS_PASSWORD, 
+      // no_ready_check: true, // new property
+    }),
+    // CacheModule.registerAsync({
+    //   imports: [ConfigModule],
+    //   useFactory:async(configService:ConfigService)=>({
+    //     isGlobal:true,
+    //     store: redisStore,
+    //     host: configService.get<string>('REDIS_HOST'),
+    //     port: configService.get<string>('REDIS_PORT'),
+    //     // username: configService.get<string>('REDIS_USERNAME'), 
+    //     // password: configService.get<string>('REDIS_PASSWORD'), 
+    //     // no_ready_check: true, // new property
+    //   }),
+    //   inject: [ConfigService],
+    // }),
     AuthModule,
     PrismaModule,
     FileModule,
@@ -34,6 +65,9 @@ import { ChatModule } from './chat/chat.module';
     SocketModule,
     CommonModule,
     ChatModule,
+    QueueModule,
+    EmailModule,
+    SmsModule
   ],
   providers: [
     {

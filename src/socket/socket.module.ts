@@ -5,7 +5,7 @@ import { AuthModule } from 'src/auth/auth.module';
 @Global()
 @Module({
   providers: [EventsGateway],
-  imports:[AuthModule],
+  // imports:[AuthModule],
   exports:[EventsGateway]
 })
 export class SocketModule {}

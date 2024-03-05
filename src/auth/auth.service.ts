@@ -9,11 +9,11 @@ import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { FileService } from 'src/file/file.service';
 import * as CsrfTokens from 'csrf';
-import * as Twilio from 'twilio';
 import { Prisma } from '@prisma/client';
 import { EventsGateway } from 'src/socket/socket.gateway';
 import { CommonService } from 'src/common/common.service';
-
+import { SendgridEmailService } from 'src/email/email.service';
+import { EmailTemplate } from './notification/email.template';
 @Injectable()
 export class AuthService {
   constructor(
@@ -21,7 +21,7 @@ export class AuthService {
     private commonService: CommonService,
     private configService: ConfigService,
     private fileService: FileService,
-    private eventsGatway:EventsGateway
+    private sendgridEmailService: SendgridEmailService,
   ) {}
 
   readonly ACCESS_TOKEN_SECRET = this.configService.get<string>(
@@ -40,21 +40,11 @@ export class AuthService {
 
   private FRONTEND_BASE_URL =
     this.configService.get<string>('FRONTEND_BASE_URL');
-  // private accountSid= this.configService.get<string>('TWILIO_ACCOUNT_SID');
-  // private authToken= this.configService.get<string>('TWILIO_AUTH_TOKEN');
-  private messagingServiceSid= this.configService.get<string>('TWILIO_SERVICE_ID');
-  private client=Twilio()
-  private selectUserFields = {
-    id: true,
-    email: true,
-    name: true,
-    isLocalAuth: true,
-    googleId: true,
-    createdAt: true,
-    updatedAt: true,
-  };
+  private FROM_EMAIL = this.configService.get<string>('FROM_EMAIL');
+  private messagingServiceSid =
+    this.configService.get<string>('TWILIO_SERVICE_ID');
 
-
+ 
   async authGoogleCallback(res: Response, user: googlePayload) {
     const db_user = await this.getUserByEmail(user.email);
     if (!db_user) {
@@ -111,7 +101,7 @@ export class AuthService {
       avatar,
       this.AWS_FOLDER,
     );
-    
+
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
@@ -121,7 +111,6 @@ export class AuthService {
       },
     });
     // await this.sendSms('Hello This Maruf, How are you doing','whatsapp:+251945913839')
-    await this.sendSms('Hello This Maruf, How are you doing','+251945913839')
     return user;
   }
 
@@ -152,6 +141,13 @@ export class AuthService {
     this.setCookie('access_token', access_token, res);
     this.setCookie('refresh_token', refresh_token, res);
     // this.eventsGatway.socketIdEvent()
+    await this.sendgridEmailService.sendEmail(
+      EmailTemplate.accountConfirmationEmail(
+        this.FROM_EMAIL,
+        ['marufbelete9@gmail.com','beletemaruf@gmail.com'],
+        'Maruf',
+      ),
+    );
     return user;
   }
 
@@ -191,9 +187,9 @@ export class AuthService {
   // }
 
   async getCsrfToken(res: Response) {
-    const {csrf_token,secret}=await this.generateCsrfToken()
-    this.setCookie('_csrf',secret, res);
-    return { csrf_token};
+    const { csrf_token, secret } = await this.generateCsrfToken();
+    this.setCookie('_csrf', secret, res);
+    return { csrf_token };
   }
 
   async logout(res: Response, refresh_token: string, user: payload) {
@@ -204,7 +200,15 @@ export class AuthService {
 
   async getAllUser() {
     return await this.prisma.user.findMany({
-      select: this.selectUserFields,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isLocalAuth: true,
+        googleId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
   }
 
@@ -215,17 +219,6 @@ export class AuthService {
 
   //untility...........................................
 
-  async sendSms(message: string, to:string) {
-    return this.client.messages
-    .create({
-      body: message,
-      to: to, // Text your number
-      messagingServiceSid:this.messagingServiceSid,
-      // scheduleType:
-      // from: 'whatsapp:+14155238886', // From a valid Twilio number
-      // from: '+12077473070', // From a valid Twilio number
-    })
-  }
   async isPasswordMatch(expectedPassword: string, actualPassword: string) {
     return verify(expectedPassword, actualPassword);
   }
@@ -237,7 +230,7 @@ export class AuthService {
   }
 
   validateToken(token: string, secret: string) {
-    return this.commonService.validateToken(token,secret );
+    return this.commonService.validateToken(token, secret);
   }
 
   async tokenExist(sub: string, refresh_token: string) {
@@ -247,11 +240,11 @@ export class AuthService {
   }
 
   async removeToken(filter: RefreshTokenFilter) {
-//     let x:Prisma.UserCreateInput
-//     x={
-// posts:{
-  
-// }
+    //     let x:Prisma.UserCreateInput
+    //     x={
+    // posts:{
+
+    // }
     // }
     // this.prisma.user.findMany({
     //   where:{
@@ -263,12 +256,12 @@ export class AuthService {
     const result = await this.prisma.user.findMany({
       where: {
         posts: {
-            none: {
-              description: "true"
-            }
-        }
-      }
-    })
+          none: {
+            description: 'true',
+          },
+        },
+      },
+    });
     return this.prisma.refreshToken.deleteMany({
       where: filter,
     });
@@ -278,7 +271,7 @@ export class AuthService {
     return this.prisma.refreshToken.create({
       data: {
         hashedRt: token,
-        userId: sub
+        userId: sub,
       },
     });
   }
@@ -304,12 +297,12 @@ export class AuthService {
     res.cookie(key, token, {
       httpOnly: true,
       secure: true,
-      sameSite:'none'
+      sameSite: 'none',
     });
   }
 
   clearCookie(key: string, res: Response) {
-    res.clearCookie(key, { httpOnly: true, secure: true, sameSite: 'none'});
+    res.clearCookie(key, { httpOnly: true, secure: true, sameSite: 'none' });
   }
 
   async generateCsrfToken() {
@@ -317,13 +310,11 @@ export class AuthService {
     const secret = tokens.secretSync();
     const token = tokens.create(secret);
     return {
-      csrf_token:token,
-      secret
+      csrf_token: token,
+      secret,
     };
-    
   }
 }
-
 
 // import { PrismaClient } from '@prisma/client'
 // const prisma = new PrismaClient()
@@ -361,10 +352,10 @@ export class AuthService {
 
 //     return recipient
 //   }, {
-  //   maxWait: 5000, // default: 2000
-  //   timeout: 10000, // default: 5000
-  //   isolationLevel: Prisma.TransactionIsolationLevel.Serializable, // optional, default defined by database configuration
-  // })
+//   maxWait: 5000, // default: 2000
+//   timeout: 10000, // default: 5000
+//   isolationLevel: Prisma.TransactionIsolationLevel.Serializable, // optional, default defined by database configuration
+// })
 // }
 
 // async function main() {

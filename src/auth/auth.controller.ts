@@ -32,6 +32,8 @@ import { GetGoogleUserInfo } from './decorator/getGoogleUserInfo.decorator';
 import { ConfigService } from '@nestjs/config';
 import { ApiResponse, ApiResponseProperty, ApiTags } from '@nestjs/swagger';
 import { Error4xxResponseDto } from 'src/common/dtos/4xx.dto';
+import { UserSignUpEvent } from './events/signup.event';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 // import { RefreshTokenGuard } from './guards/refreshToken.guard';
 // import { Role, RolesAccess } from './decorator/role.decorator';
 // import { RolesGuard } from './guards/role.guard';
@@ -42,6 +44,7 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private configService: ConfigService,
+    private eventEmitter: EventEmitter2
   ) {}
   private FRONTEND_BASE_URL =
     this.configService.get<string>('FRONTEND_BASE_URL');
@@ -86,6 +89,10 @@ export class AuthController {
     file: Express.Multer.File,
   ) {
     const result = await this.authService.signUp(dto, file);
+    const messageEvent=new UserSignUpEvent()
+    messageEvent.message="Hello you are signed up"
+    messageEvent.to="+251945913839"
+    this.eventEmitter.emit('user.created',messageEvent);
     return result;
   }
 
@@ -106,6 +113,12 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserResponseDto> {
     const result = await this.authService.signIn(user, res);
+    const messageEvent=new UserSignUpEvent()
+    messageEvent.message="Hello you are signed up"
+    // messageEvent.to="+251945913839"
+    messageEvent.to='whatsapp:+251945913839'
+    // messageEvent.to="whatsapp:+15005550006"
+    this.eventEmitter.emit('user.created',messageEvent);
     return new UserResponseDto(result);
     // new FormattedUserResponseDto(result);
   }
